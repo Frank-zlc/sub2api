@@ -153,7 +153,7 @@
       <!-- Account Type Selection (Anthropic) -->
       <div v-if="form.platform === 'anthropic'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
@@ -267,6 +267,36 @@
             <div>
               <span class="block text-sm font-medium text-gray-900 dark:text-white">Vertex</span>
               <span class="text-xs text-gray-500 dark:text-gray-400">Service Account</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            @click="accountCategory = 'anthropic_aws'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'anthropic_aws'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-gray-200 hover:border-blue-300 dark:border-dark-600 dark:hover:border-blue-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'anthropic_aws'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="cloud" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{
+                t('admin.accounts.anthropicAwsLabel')
+              }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{
+                t('admin.accounts.anthropicAwsDesc')
+              }}</span>
             </div>
           </button>
 
@@ -1635,6 +1665,81 @@
               }}
             </p>
           </div>
+        </div>
+      </div>
+
+      <!-- Claude Platform on AWS credentials (only for anthropic_aws type) -->
+      <div v-if="form.platform === 'anthropic' && accountCategory === 'anthropic_aws'" class="space-y-4">
+        <div>
+          <label class="input-label">API Key</label>
+          <div class="relative">
+            <input
+              v-model="anthropicAwsApiKey"
+              :type="showAnthropicAwsApiKey ? 'text' : 'password'"
+              required
+              class="input font-mono pr-10"
+              autocomplete="new-password"
+              data-1p-ignore
+              data-lpignore="true"
+              data-bwignore="true"
+              :placeholder="t('admin.accounts.anthropicAwsApiKeyPlaceholder')"
+            />
+            <button
+              type="button"
+              @click="showAnthropicAwsApiKey = !showAnthropicAwsApiKey"
+              class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <Icon :name="showAnthropicAwsApiKey ? 'eyeOff' : 'eye'" size="sm" />
+            </button>
+          </div>
+          <p class="input-hint">{{ t('admin.accounts.anthropicAwsHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.anthropicAwsWorkspaceIdLabel') }}</label>
+          <input
+            v-model="anthropicAwsWorkspaceId"
+            type="text"
+            required
+            class="input font-mono"
+            :placeholder="t('admin.accounts.anthropicAwsWorkspaceIdPlaceholder')"
+          />
+          <p class="input-hint">{{ t('admin.accounts.anthropicAwsWorkspaceIdHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.anthropicAwsRegionLabel') }}</label>
+          <select v-model="anthropicAwsRegion" class="input">
+            <optgroup label="US">
+              <option value="us-east-1">us-east-1 (N. Virginia)</option>
+              <option value="us-east-2">us-east-2 (Ohio)</option>
+              <option value="us-west-1">us-west-1 (N. California)</option>
+              <option value="us-west-2">us-west-2 (Oregon)</option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option value="eu-west-1">eu-west-1 (Ireland)</option>
+              <option value="eu-west-2">eu-west-2 (London)</option>
+              <option value="eu-west-3">eu-west-3 (Paris)</option>
+              <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+              <option value="eu-central-2">eu-central-2 (Zurich)</option>
+              <option value="eu-south-1">eu-south-1 (Milan)</option>
+              <option value="eu-south-2">eu-south-2 (Spain)</option>
+              <option value="eu-north-1">eu-north-1 (Stockholm)</option>
+            </optgroup>
+            <optgroup label="Asia Pacific">
+              <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+              <option value="ap-northeast-2">ap-northeast-2 (Seoul)</option>
+              <option value="ap-northeast-3">ap-northeast-3 (Osaka)</option>
+              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+              <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+              <option value="ap-southeast-2">ap-southeast-2 (Sydney)</option>
+            </optgroup>
+            <optgroup label="Canada">
+              <option value="ca-central-1">ca-central-1 (Canada)</option>
+            </optgroup>
+            <optgroup label="South America">
+              <option value="sa-east-1">sa-east-1 (São Paulo)</option>
+            </optgroup>
+          </select>
+          <p class="input-hint">{{ t('admin.accounts.anthropicAwsRegionHint') }}</p>
         </div>
       </div>
 
@@ -3274,7 +3379,7 @@ interface TempUnschedRuleForm {
 // State
 const step = ref(1)
 const submitting = ref(false)
-const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
+const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account' | 'anthropic_aws'>('oauth-based') // UI selection for account category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
@@ -3341,6 +3446,13 @@ const bedrockSessionToken = ref('')
 const bedrockRegion = ref('us-east-1')
 const bedrockForceGlobal = ref(false)
 const bedrockApiKeyValue = ref('')
+
+// Claude Platform on AWS credentials
+const anthropicAwsApiKey = ref('')
+const anthropicAwsWorkspaceId = ref('')
+const anthropicAwsRegion = ref('us-east-1')
+const showAnthropicAwsApiKey = ref(false)
+
 const vertexServiceAccountFileInput = ref<HTMLInputElement | null>(null)
 const vertexServiceAccountJson = ref('')
 const vertexProjectId = ref('')
@@ -3539,6 +3651,10 @@ const isOAuthFlow = computed(() => {
   if (form.platform === 'anthropic' && accountCategory.value === 'bedrock') {
     return false
   }
+  // Claude Platform on AWS 类型不需要 OAuth 流程
+  if (form.platform === 'anthropic' && accountCategory.value === 'anthropic_aws') {
+    return false
+  }
   return accountCategory.value === 'oauth-based'
 })
 
@@ -3610,6 +3726,11 @@ watch(
       form.type = 'bedrock' as AccountType
       return
     }
+    // Claude Platform on AWS 类型
+    if (form.platform === 'anthropic' && category === 'anthropic_aws') {
+      form.type = 'anthropic_aws' as AccountType
+      return
+    }
     if ((form.platform === 'gemini' || form.platform === 'anthropic') && category === 'service_account') {
       form.type = 'service_account' as AccountType
     } else if (category === 'oauth-based') {
@@ -3656,6 +3777,9 @@ watch(
     if (newPlatform !== 'anthropic' && accountCategory.value === 'bedrock') {
       accountCategory.value = 'oauth-based'
     }
+    if (newPlatform !== 'anthropic' && accountCategory.value === 'anthropic_aws') {
+      accountCategory.value = 'oauth-based'
+    }
     // Reset Bedrock fields when switching platforms
     bedrockAccessKeyId.value = ''
     bedrockSecretAccessKey.value = ''
@@ -3664,6 +3788,11 @@ watch(
     bedrockForceGlobal.value = false
     bedrockAuthMode.value = 'sigv4'
     bedrockApiKeyValue.value = ''
+    // Reset Claude Platform on AWS fields when switching platforms
+    anthropicAwsApiKey.value = ''
+    anthropicAwsWorkspaceId.value = ''
+    anthropicAwsRegion.value = 'us-east-1'
+    showAnthropicAwsApiKey.value = false
     vertexServiceAccountJson.value = ''
     vertexProjectId.value = ''
     vertexClientEmail.value = ''
@@ -4104,6 +4233,10 @@ const resetForm = () => {
   vertexProjectId.value = ''
   vertexClientEmail.value = ''
   vertexLocation.value = 'global'
+  anthropicAwsApiKey.value = ''
+  anthropicAwsWorkspaceId.value = ''
+  anthropicAwsRegion.value = 'us-east-1'
+  showAnthropicAwsApiKey.value = false
   tempUnschedEnabled.value = false
   tempUnschedRules.value = []
   geminiOAuthType.value = 'code_assist'
@@ -4351,6 +4484,47 @@ const handleSubmit = async () => {
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
 
     await createAccountAndFinish('anthropic', 'bedrock' as AccountType, credentials)
+    return
+  }
+
+  // For Claude Platform on AWS type, create directly
+  if (form.platform === 'anthropic' && accountCategory.value === 'anthropic_aws') {
+    if (!form.name.trim()) {
+      appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
+      return
+    }
+    if (!anthropicAwsApiKey.value.trim()) {
+      appStore.showError(t('admin.accounts.anthropicAwsApiKeyRequired'))
+      return
+    }
+    if (!anthropicAwsWorkspaceId.value.trim()) {
+      appStore.showError(t('admin.accounts.anthropicAwsWorkspaceIdRequired'))
+      return
+    }
+
+    const credentials: Record<string, unknown> = {
+      api_key: anthropicAwsApiKey.value.trim(),
+      workspace_id: anthropicAwsWorkspaceId.value.trim(),
+      aws_region: anthropicAwsRegion.value.trim() || 'us-east-1',
+    }
+
+    // Model mapping
+    const modelMapping = buildModelMappingObject(
+      modelRestrictionMode.value, allowedModels.value, modelMappings.value
+    )
+    if (modelMapping) {
+      credentials.model_mapping = modelMapping
+    }
+
+    // Pool mode
+    if (poolModeEnabled.value) {
+      credentials.pool_mode = true
+      credentials.pool_mode_retry_count = normalizePoolModeRetryCount(poolModeRetryCount.value)
+    }
+
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+
+    await createAccountAndFinish('anthropic', 'anthropic_aws' as AccountType, credentials)
     return
   }
 

@@ -206,7 +206,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 
 	// API Key 账号测试连接时也需要应用通配符模型映射。
-	if account.Type == "apikey" {
+	if account.Type == "apikey" || account.Type == AccountTypeAnthropicAWS {
 		testModelID = account.GetMappedModel(testModelID)
 	}
 
@@ -231,8 +231,8 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No access token available")
 		}
-	} else if account.Type == "apikey" {
-		// API Key - use x-api-key header
+	} else if account.Type == "apikey" || account.IsAnthropicAWS() {
+		// API Key / Claude Platform on AWS - use x-api-key header
 		useBearer = false
 		authToken = account.GetCredential("api_key")
 		if authToken == "" {
@@ -247,7 +247,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/v1/messages?beta=true"
+		if account.IsAnthropicAWS() {
+			apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/v1/messages"
+		} else {
+			apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/v1/messages?beta=true"
+		}
 	} else {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
 	}
@@ -290,6 +294,13 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	} else {
 		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
 		req.Header.Set("x-api-key", authToken)
+	}
+
+	// Claude Platform on AWS 需要注入 anthropic-workspace-id 请求头
+	if account.IsAnthropicAWS() {
+		if wsID := account.GetAnthropicAWSWorkspaceID(); wsID != "" {
+			req.Header.Set("anthropic-workspace-id", wsID)
+		}
 	}
 
 	// Get proxy URL

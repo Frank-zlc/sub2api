@@ -3750,6 +3750,13 @@ func (s *GatewayService) GetAccessToken(ctx context.Context, account *Account) (
 			return "", "", errors.New("api_key not found in credentials")
 		}
 		return apiKey, "apikey", nil
+	case AccountTypeAnthropicAWS:
+		apiKey := account.GetCredential("api_key")
+		if apiKey == "" {
+			return "", "", errors.New("api_key not found in credentials")
+		}
+		// 复用 apikey 透传链路；buildUpstreamRequestAnthropicAPIKeyPassthrough 内会按 account.Type 注入 anthropic-workspace-id
+		return apiKey, "apikey", nil
 	case AccountTypeBedrock:
 		return "", "bedrock", nil // Bedrock 使用 SigV4 签名或 API Key，由 forwardBedrock 处理
 	case AccountTypeServiceAccount:
@@ -4352,7 +4359,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		return s.handleWebSearchEmulation(ctx, c, account, parsed)
 	}
 
-	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {
+	if account != nil && (account.IsAnthropicAPIKeyPassthroughEnabled() || account.IsAnthropicAWS()) {
 		passthroughBody := parsed.Body
 		passthroughModel := parsed.Model
 		if passthroughModel != "" {
@@ -5223,7 +5230,12 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		if err != nil {
 			return nil, err
 		}
-		targetURL = validatedURL + "/v1/messages?beta=true"
+		// Claude Platform on AWS 不支持 ?beta=true 查询参数
+		if account.IsAnthropicAWS() {
+			targetURL = validatedURL + "/v1/messages"
+		} else {
+			targetURL = validatedURL + "/v1/messages?beta=true"
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
@@ -5250,6 +5262,13 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
 	setHeaderRaw(req.Header, "x-api-key", token)
+
+	// Claude Platform on AWS 需要注入 anthropic-workspace-id 请求头
+	if account.IsAnthropicAWS() {
+		if wsID := account.GetAnthropicAWSWorkspaceID(); wsID != "" {
+			setHeaderRaw(req.Header, "anthropic-workspace-id", wsID)
+		}
+	}
 
 	if getHeaderRaw(req.Header, "content-type") == "" {
 		setHeaderRaw(req.Header, "content-type", "application/json")
@@ -8850,7 +8869,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 		return fmt.Errorf("parse request: empty request")
 	}
 
-	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {
+	if account != nil && (account.IsAnthropicAPIKeyPassthroughEnabled() || account.IsAnthropicAWS()) {
 		passthroughBody := parsed.Body
 		if reqModel := parsed.Model; reqModel != "" {
 			if mappedModel := account.GetMappedModel(reqModel); mappedModel != reqModel {
@@ -9164,7 +9183,12 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		if err != nil {
 			return nil, err
 		}
-		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
+		// Claude Platform on AWS 不支持 ?beta=true 查询参数
+		if account.IsAnthropicAWS() {
+			targetURL = validatedURL + "/v1/messages/count_tokens"
+		} else {
+			targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
@@ -9190,6 +9214,13 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
 	req.Header.Set("x-api-key", token)
+
+	// Claude Platform on AWS 需要注入 anthropic-workspace-id 请求头
+	if account.IsAnthropicAWS() {
+		if wsID := account.GetAnthropicAWSWorkspaceID(); wsID != "" {
+			req.Header.Set("anthropic-workspace-id", wsID)
+		}
+	}
 
 	if req.Header.Get("content-type") == "" {
 		req.Header.Set("content-type", "application/json")
